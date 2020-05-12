@@ -56,19 +56,19 @@ publish-all: update-version-go test test-wasm
 	git push origin master "v$(ESBUILD_VERSION)"
 
 publish-windows: platform-windows
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --access=public --otp="$(OTP)"
 
 publish-darwin: platform-darwin
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-darwin-64 && npm publish --access=public --otp="$(OTP)"
 
 publish-linux: platform-linux
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-64 && npm publish --access=public --otp="$(OTP)"
 
 publish-wasm: platform-wasm
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --access=public --otp="$(OTP)"
 
 publish-neutral: platform-neutral
-	[ ! -z "$(OTP)" ] && cd npm/esbuild && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild && npm publish --access=public --otp="$(OTP)"
 
 clean:
 	rm -f esbuild
