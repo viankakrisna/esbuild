@@ -62,7 +62,6 @@ exports.build = options => {
   return new Promise((resolve, reject) => {
     const stdio = options.stdio;
     const flags = [];
-    pushCommonFlags(flags, options);
 
     if (options.name) flags.push(`--name=${options.name}`);
     if (options.bundle) flags.push('--bundle');
@@ -71,6 +70,7 @@ exports.build = options => {
     if (options.platform) flags.push(`--platform=${options.platform}`);
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
+    if (options.preferSuffix) flags.push(`--prefer-suffix=${options.preferSuffix}`)
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 

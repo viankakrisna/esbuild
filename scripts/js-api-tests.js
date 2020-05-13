@@ -19,6 +19,23 @@ let tests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async resolve({ esbuild }) {
+    const input = path.join(testDir, 'input.js')
+    const otherModule = path.join(testDir, 'other.js')
+    const otherModuleDesktop = path.join(testDir, 'other.desktop.js')
+
+    const output = path.join(testDir, 'output.js')
+
+    await util.promisify(fs.writeFile)(input, 'import other from "./other"; export default other')
+    await util.promisify(fs.writeFile)(otherModule, 'export default 123')
+    await util.promisify(fs.writeFile)(otherModuleDesktop, 'export default 321')
+    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', preferSuffix: 'desktop' })
+    const result = require(output)
+    assert.strictEqual(result.default, 321)
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(js, `console.log(React.createElement("div", null));\n`)

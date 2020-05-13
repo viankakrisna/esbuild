@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -54,13 +55,10 @@ func parseFile(
 	log logging.Log, source logging.Source, importSource logging.Source, pathRange ast.Range,
 	parseOptions parser.ParseOptions, bundleOptions BundleOptions, results chan parseResult,
 ) {
-	path := source.AbsolutePath
+	absolutePath := source.AbsolutePath
 
 	// Get the file extension
-	extension := ""
-	if lastDot := strings.LastIndexByte(path, '.'); lastDot >= 0 {
-		extension = path[lastDot:]
-	}
+	extension := path.Ext(absolutePath)
 
 	// Pick the loader based on the file extension
 	loader := bundleOptions.ExtensionToLoader[extension]
@@ -126,7 +124,7 @@ func parseFile(
 		results <- parseResult{source.Index, ast, true}
 
 	default:
-		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", absolutePath))
 		results <- parseResult{}
 	}
 }
@@ -177,15 +175,15 @@ func ScanBundle(
 		isDisabled   bool
 	}
 
-	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, flags parseFileFlags) (uint32, bool) {
-		sourceIndex, ok := visited[path]
+	maybeParseFile := func(absolutePath string, importSource logging.Source, pathRange ast.Range, flags parseFileFlags, preferSuffix string) (uint32, bool) {
+		sourceIndex, ok := visited[absolutePath]
 		if !ok {
 			sourceIndex = uint32(len(sources))
 			isStdin := bundleOptions.LoaderForStdin != LoaderNone && flags.isEntryPoint
-			prettyPath := path
+			prettyPath := absolutePath
 			if !isStdin {
-				prettyPath = res.PrettyPath(path)
-				visited[path] = sourceIndex
+				prettyPath = res.PrettyPath(absolutePath)
+				visited[absolutePath] = sourceIndex
 			}
 			contents := ""
 
@@ -199,9 +197,19 @@ func ScanBundle(
 					}
 					contents = string(bytes)
 				} else {
-					contents, ok = res.Read(path)
+					println(preferSuffix)
+					if preferSuffix != "" {
+						dir := path.Dir(absolutePath)
+						name := path.Base(absolutePath)
+						ext := path.Ext(name)
+						preferSuffixPath := path.Join(dir, strings.Replace(name, ext, "."+preferSuffix+ext, 1))
+						if _, err := os.Stat(preferSuffixPath); !os.IsNotExist(err) {
+							absolutePath = preferSuffixPath
+						}
+					}
+					contents, ok = res.Read(absolutePath)
 					if !ok {
-						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
+						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", absolutePath))
 						return 0, false
 					}
 				}
@@ -210,7 +218,7 @@ func ScanBundle(
 			source := logging.Source{
 				Index:        sourceIndex,
 				IsStdin:      isStdin,
-				AbsolutePath: path,
+				AbsolutePath: absolutePath,
 				PrettyPath:   prettyPath,
 				Contents:     contents,
 			}
@@ -225,7 +233,7 @@ func ScanBundle(
 	entryPoints := []uint32{}
 	for _, path := range entryPaths {
 		flags := parseFileFlags{isEntryPoint: true}
-		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, flags); ok {
+		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, flags, bundleOptions.PreferSuffix); ok {
 			entryPoints = append(entryPoints, sourceIndex)
 		}
 	}
@@ -241,11 +249,10 @@ func ScanBundle(
 				sourcePath := source.AbsolutePath
 				pathText := importPath.Path.Text
 				pathRange := source.RangeOfString(importPath.Path.Loc)
-
 				switch path, status := res.Resolve(sourcePath, pathText); status {
 				case resolver.ResolveEnabled, resolver.ResolveDisabled:
 					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
-					if sourceIndex, ok := maybeParseFile(path, source, pathRange, flags); ok {
+					if sourceIndex, ok := maybeParseFile(path, source, pathRange, flags, bundleOptions.PreferSuffix); ok {
 						resolvedImports[pathText] = sourceIndex
 						filteredImportPaths = append(filteredImportPaths, importPath)
 					}
@@ -334,6 +341,7 @@ type BundleOptions struct {
 	ModuleName        string
 	ExtensionToLoader map[string]Loader
 	OutputFormat      Format
+	PreferSuffix      string
 
 	// If this isn't LoaderNone, all entry point contents are assumed to come
 	// from stdin and must be loaded with this loader

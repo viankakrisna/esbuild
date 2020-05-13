@@ -184,6 +184,7 @@ func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath st
 }
 
 func (r *resolver) Read(path string) (string, bool) {
+	println(path)
 	contents, ok := r.fs.ReadFile(path)
 	return contents, ok
 }

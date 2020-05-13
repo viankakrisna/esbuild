@@ -193,6 +193,8 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		},
 	}
 
+	println(strings.Join(rawArgs, "+"))
+
 	for _, arg := range rawArgs {
 		switch {
 		case arg == "--bundle":
@@ -344,6 +346,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			}
 			args.resolveOptions.ExternalModules[path] = true
 
+		case strings.HasPrefix(arg, "--prefer-suffix="):
+			suffix := arg[len("--prefer-suffix="):]
+			args.bundleOptions.PreferSuffix = suffix
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			if parts, ok := args.parseMemberExpression(arg[len("--jsx-factory="):]); ok {
 				args.parseOptions.JSX.Factory = parts
