@@ -162,6 +162,8 @@ func (args *argsObject) parseLoader(text string) bundler.Loader {
 		return bundler.LoaderBase64
 	case "dataurl":
 		return bundler.LoaderDataURL
+	case "emptystring":
+		return bundler.LoaderEmptyString
 	default:
 		return bundler.LoaderNone
 	}
