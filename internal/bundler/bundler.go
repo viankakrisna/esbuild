@@ -128,7 +128,7 @@ func parseFile(
 		results <- parseResult{source.Index, ast, true}
 
 	case LoaderEmptyString:
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("''")}}
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("")}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
 	default:
