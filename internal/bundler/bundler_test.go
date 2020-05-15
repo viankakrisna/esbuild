@@ -2527,6 +2527,46 @@ func testManualMimeTypeMapping(t *testing.T) {
 	})
 }
 
+func TestUrlLoader(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.svg'))
+			`,
+			"/test.svg": "a\x00b\x80c\xFFd",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".svg": LoaderURL,
+			},
+			ExtensionToMimeType: map[string]string{
+				".svg": "somemimetype",
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(exports, module) {
+    // /test.svg
+    module.exports = "test.svg";
+  },
+
+  0() {
+    // /entry.js
+    console.log(__require(1 /* ./test.svg */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestRequireBadExtension(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
