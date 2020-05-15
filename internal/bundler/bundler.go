@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -54,12 +55,12 @@ func parseFile(
 	log logging.Log, source logging.Source, importSource logging.Source, pathRange ast.Range,
 	parseOptions parser.ParseOptions, bundleOptions BundleOptions, results chan parseResult,
 ) {
-	path := source.AbsolutePath
+	filePath := source.AbsolutePath
 
 	// Get the file extension
 	extension := ""
-	if lastDot := strings.LastIndexByte(path, '.'); lastDot >= 0 {
-		extension = path[lastDot:]
+	if lastDot := strings.LastIndexByte(filePath, '.'); lastDot >= 0 {
+		extension = filePath[lastDot:]
 	}
 
 	// Pick the loader based on the file extension
@@ -131,8 +132,14 @@ func parseFile(
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("")}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
+	case LoaderURL:
+		url := path.Base(filePath)
+		ioutil.WriteFile(path.Join(bundleOptions.AbsOutputDir, url), []byte(source.Contents), 0755)
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source.Index, ast, true}
 	default:
-		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", filePath))
 		results <- parseResult{}
 	}
 }
@@ -280,6 +287,7 @@ const (
 	LoaderText
 	LoaderBase64
 	LoaderDataURL
+	LoaderURL
 	LoaderEmptyString
 )
 
