@@ -138,7 +138,7 @@ func parseFile(
 		if outputPath == "" {
 			outputPath = path.Dir(bundleOptions.AbsOutputFile)
 		}
-		ioutil.WriteFile(path.Join(outputPath, url), []byte(source.Contents), 0755)
+		ioutil.WriteFile(path.Join(outputPath, url), []byte(source.Contents), 0644)
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
