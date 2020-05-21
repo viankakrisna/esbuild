@@ -70,7 +70,7 @@ publish-linux: platform-linux
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-64 && npm publish --access=public --otp="$(OTP)"
 
 publish-linux-arm64: platform-linux-arm64
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-arm64 && npm publish --access=public --otp="$(OTP)"
 
 publish-wasm: platform-wasm
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --access=public --otp="$(OTP)"
