@@ -164,7 +164,11 @@ func parseFile(
 
 	case LoaderURL:
 		url := path.Base(absolutePath)
-		ioutil.WriteFile(path.Join(bundleOptions.AbsOutputDir, url), []byte(source.Contents), 0644)
+		targetFolder := bundleOptions.AbsOutputDir
+		if targetFolder == "" {
+			targetFolder = path.Dir(bundleOptions.AbsOutputFile)
+		}
+		defer ioutil.WriteFile(path.Join(targetFolder, url), []byte(source.Contents), 0644)
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source, ast, true}
