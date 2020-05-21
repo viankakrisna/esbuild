@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -44,9 +45,7 @@ Options:
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64, dataurl
-  --mime-type:X=L       Use mime type L to read file extension X,
-                        only applicable when loader is dataurl for that extension
+                        one of: js, jsx, ts, tsx, json, text, base64, url, dataurl
 
 Advanced options:
   --version             Print the current version and exit (` + esbuildVersion + `)
@@ -162,11 +161,8 @@ func (args *argsObject) parseLoader(text string) bundler.Loader {
 		return bundler.LoaderBase64
 	case "dataurl":
 		return bundler.LoaderDataURL
-	case "emptystring":
-		return bundler.LoaderEmptyString
 	case "url":
 		return bundler.LoaderURL
-
 	default:
 		return bundler.LoaderNone
 	}
@@ -190,8 +186,7 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			Defines: make(map[string]parser.DefineFunc),
 		},
 		bundleOptions: bundler.BundleOptions{
-			ExtensionToLoader:   bundler.DefaultExtensionToLoaderMap(),
-			ExtensionToMimeType: bundler.DefaultExtensionToMimeType(),
+			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
 		},
 		resolveOptions: resolver.ResolveOptions{
 			ExtensionOrder:  []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"},
@@ -306,26 +301,6 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			} else {
 				args.bundleOptions.LoaderForStdin = parsedLoader
 			}
-
-		case strings.HasPrefix(arg, "--mime-type:"):
-			text := arg[len("--mime-type:"):]
-			equals := strings.IndexByte(text, '=')
-			if equals == -1 {
-				return argsObject{}, fmt.Errorf("Missing \"=\": %s", arg)
-			}
-			extension, mimeType := text[:equals], text[equals+1:]
-			if !strings.HasPrefix(extension, ".") {
-				return argsObject{}, fmt.Errorf("File extension for mime type must start with \".\": %s", arg)
-			}
-			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
-				return argsObject{}, fmt.Errorf("Invalid file extension for mime type: %s", arg)
-			}
-
-			args.bundleOptions.ExtensionToMimeType[extension] = mimeType
-
-		case strings.HasPrefix(arg, "--mime-type="):
-			mimeType := arg[len("--mime-type="):]
-			args.bundleOptions.MimeTypeForStdin = mimeType
 
 		case strings.HasPrefix(arg, "--target="):
 			switch arg[len("--target="):] {
@@ -559,6 +534,12 @@ func main() {
 				run(fs, args)
 			}
 		} else {
+			// Disable the GC since we're just going to allocate a bunch of memory
+			// and then exit anyway. This speedup is not insignificant. Make sure to
+			// only do this here once we know that we're not going to be a long-lived
+			// process though.
+			debug.SetGCPercent(-1)
+
 			run(fs, args)
 		}
 	}()

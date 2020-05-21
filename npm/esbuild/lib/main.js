@@ -15,6 +15,13 @@ function esbuildSpawn({ flags, stdio }) {
     });
   }
 
+  if (process.platform === 'linux' && os.arch() === 'arm64') {
+    return child_process.spawn(path.join(__dirname, '..', 'bin', 'esbuild'), flags, {
+      cwd: process.cwd(),
+      stdio,
+    });
+  }
+
   if (process.platform === 'win32' && os.arch() === 'x64') {
     if (WASM) {
       return child_process.spawn('node', [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
@@ -74,7 +81,6 @@ exports.build = options => {
     if (options.color) flags.push(`--color=${options.color}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
-    if (options.mimeType) for (const ext in options.mimeType) flags.push(`--mime-type:${ext}=${options.mimeType[ext]}`);
 
     for (const entryPoint of options.entryPoints) {
       if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
@@ -264,7 +270,6 @@ exports.startService = () => {
         const flags = ['build', `/${name}`, file, '--', name, '--outfile=/output.js'];
         pushCommonFlags(flags, options, { sourcemap: 'external' });
         if (options.loader) flags.push(`--loader:.${loader}=${options.loader}`);
-        if (options.mimeType) flags.push(`--mime-type:.${loader}=${options.mimeType}`)
         const response = await sendRequest(flags);
 
         // Check for failure

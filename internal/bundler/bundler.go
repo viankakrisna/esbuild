@@ -46,21 +46,63 @@ type Bundle struct {
 }
 
 type parseResult struct {
-	sourceIndex uint32
-	ast         ast.AST
-	ok          bool
+	source logging.Source
+	ast    ast.AST
+	ok     bool
 }
 
 func parseFile(
-	log logging.Log, source logging.Source, importSource logging.Source, pathRange ast.Range,
-	parseOptions parser.ParseOptions, bundleOptions BundleOptions, results chan parseResult,
+	log logging.Log,
+	res resolver.Resolver,
+	absolutePath string,
+	sourceIndex uint32,
+	isStdin bool,
+	importSource logging.Source,
+	isDisabled bool,
+	pathRange ast.Range,
+	parseOptions parser.ParseOptions,
+	bundleOptions BundleOptions,
+	results chan parseResult,
 ) {
-	filePath := source.AbsolutePath
+	prettyPath := absolutePath
+	if !isStdin {
+		prettyPath = res.PrettyPath(absolutePath)
+	}
+	contents := ""
+
+	// Disabled files are left empty
+	if !isDisabled {
+		if isStdin {
+			bytes, err := ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from stdin: %s", err.Error()))
+				results <- parseResult{}
+				return
+			}
+			contents = string(bytes)
+		} else {
+			var ok bool
+			contents, ok = res.Read(absolutePath)
+			if !ok {
+				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", absolutePath))
+				results <- parseResult{}
+				return
+			}
+		}
+	}
+
+	source := logging.Source{
+		Index:        sourceIndex,
+		IsStdin:      isStdin,
+		AbsolutePath: absolutePath,
+		PrettyPath:   prettyPath,
+		Contents:     contents,
+	}
 
 	// Get the file extension
 	extension := ""
-	if lastDot := strings.LastIndexByte(filePath, '.'); lastDot >= 0 {
-		extension = filePath[lastDot:]
+	if lastDot := strings.LastIndexByte(absolutePath, '.'); lastDot >= 0 {
+		extension = absolutePath[lastDot:]
 	}
 
 	// Pick the loader based on the file extension
@@ -74,50 +116,42 @@ func parseFile(
 	switch loader {
 	case LoaderJS:
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source.Index, ast, ok}
+		results <- parseResult{source, ast, ok}
 
 	case LoaderJSX:
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source.Index, ast, ok}
+		results <- parseResult{source, ast, ok}
 
 	case LoaderTS:
 		parseOptions.TS.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source.Index, ast, ok}
+		results <- parseResult{source, ast, ok}
 
 	case LoaderTSX:
 		parseOptions.TS.Parse = true
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source.Index, ast, ok}
+		results <- parseResult{source, ast, ok}
 
 	case LoaderJSON:
 		expr, ok := parser.ParseJSON(log, source, parser.ParseJSONOptions{})
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, ok}
+		results <- parseResult{source, ast, ok}
 
 	case LoaderText:
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
+		results <- parseResult{source, ast, true}
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
+		results <- parseResult{source, ast, true}
 
 	case LoaderDataURL:
-		mimeType := bundleOptions.MimeTypeForStdin
-
-		if mimeType == "" {
-			mimeType = bundleOptions.ExtensionToMimeType[extension]
-		}
-
-		if mimeType == "" {
-			mimeType = mime.TypeByExtension(extension)
-		}
+		mimeType := mime.TypeByExtension(extension)
 
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
@@ -126,14 +160,10 @@ func parseFile(
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
+		results <- parseResult{source, ast, true}
 
-	case LoaderEmptyString:
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("")}}
-		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
 	case LoaderURL:
-		url := path.Base(filePath)
+		url := path.Base(absolutePath)
 		outputPath := bundleOptions.AbsOutputDir
 		if outputPath == "" {
 			outputPath = path.Dir(bundleOptions.AbsOutputFile)
@@ -141,9 +171,9 @@ func parseFile(
 		ioutil.WriteFile(path.Join(outputPath, url), []byte(source.Contents), 0644)
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
+		results <- parseResult{source, ast, true}
 	default:
-		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", filePath))
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", absolutePath))
 		results <- parseResult{}
 	}
 }
@@ -185,7 +215,7 @@ func ScanBundle(
 			runtimeParseOptions.IsBundling = false
 
 			ast, ok := parser.Parse(log, source, runtimeParseOptions)
-			results <- parseResult{source.Index, ast, ok}
+			results <- parseResult{source, ast, ok}
 		}()
 	}
 
@@ -194,86 +224,72 @@ func ScanBundle(
 		isDisabled   bool
 	}
 
-	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, flags parseFileFlags) (uint32, bool) {
+	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, flags parseFileFlags) uint32 {
 		sourceIndex, ok := visited[path]
 		if !ok {
 			sourceIndex = uint32(len(sources))
 			isStdin := bundleOptions.LoaderForStdin != LoaderNone && flags.isEntryPoint
-			prettyPath := path
 			if !isStdin {
-				prettyPath = res.PrettyPath(path)
 				visited[path] = sourceIndex
 			}
-			contents := ""
-
-			// Disabled files are left empty
-			if !flags.isDisabled {
-				if isStdin {
-					bytes, err := ioutil.ReadAll(os.Stdin)
-					if err != nil {
-						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from stdin: %s", err.Error()))
-						return 0, false
-					}
-					contents = string(bytes)
-				} else {
-					contents, ok = res.Read(path)
-					if !ok {
-						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
-						return 0, false
-					}
-				}
-			}
-
-			source := logging.Source{
-				Index:        sourceIndex,
-				IsStdin:      isStdin,
-				AbsolutePath: path,
-				PrettyPath:   prettyPath,
-				Contents:     contents,
-			}
-			sources = append(sources, source)
+			sources = append(sources, logging.Source{})
 			files = append(files, file{})
 			remaining++
-			go parseFile(log, source, importSource, pathRange, parseOptions, bundleOptions, results)
+			go parseFile(
+				log,
+				res,
+				path,
+				sourceIndex,
+				isStdin,
+				importSource,
+				flags.isDisabled,
+				pathRange,
+				parseOptions,
+				bundleOptions,
+				results,
+			)
 		}
-		return sourceIndex, true
+		return sourceIndex
 	}
 
 	entryPoints := []uint32{}
 	for _, path := range entryPaths {
 		flags := parseFileFlags{isEntryPoint: true}
-		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, flags); ok {
-			entryPoints = append(entryPoints, sourceIndex)
-		}
+		sourceIndex := maybeParseFile(path, logging.Source{}, ast.Range{}, flags)
+		entryPoints = append(entryPoints, sourceIndex)
 	}
 
 	for remaining > 0 {
 		result := <-results
 		remaining--
-		if result.ok {
-			resolvedImports := make(map[string]uint32)
-			filteredImportPaths := []ast.ImportPath{}
-			for _, importPath := range result.ast.ImportPaths {
-				source := sources[result.sourceIndex]
-				sourcePath := source.AbsolutePath
-				pathText := importPath.Path.Text
-				pathRange := source.RangeOfString(importPath.Path.Loc)
-
-				switch path, status := res.Resolve(sourcePath, pathText); status {
-				case resolver.ResolveEnabled, resolver.ResolveDisabled:
-					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
-					if sourceIndex, ok := maybeParseFile(path, source, pathRange, flags); ok {
-						resolvedImports[pathText] = sourceIndex
-						filteredImportPaths = append(filteredImportPaths, importPath)
-					}
-
-				case resolver.ResolveMissing:
-					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
-				}
-			}
-			result.ast.ImportPaths = filteredImportPaths
-			files[result.sourceIndex] = file{result.ast, resolvedImports}
+		if !result.ok {
+			continue
 		}
+
+		source := result.source
+		resolvedImports := make(map[string]uint32)
+		filteredImportPaths := []ast.ImportPath{}
+
+		for _, importPath := range result.ast.ImportPaths {
+			sourcePath := source.AbsolutePath
+			pathText := importPath.Path.Text
+			pathRange := source.RangeOfString(importPath.Path.Loc)
+
+			switch path, status := res.Resolve(sourcePath, pathText); status {
+			case resolver.ResolveEnabled, resolver.ResolveDisabled:
+				flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
+				sourceIndex := maybeParseFile(path, source, pathRange, flags)
+				resolvedImports[pathText] = sourceIndex
+				filteredImportPaths = append(filteredImportPaths, importPath)
+
+			case resolver.ResolveMissing:
+				log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+			}
+		}
+
+		result.ast.ImportPaths = filteredImportPaths
+		sources[source.Index] = source
+		files[source.Index] = file{result.ast, resolvedImports}
 	}
 
 	return Bundle{fs, sources, files, entryPoints}
@@ -292,7 +308,6 @@ const (
 	LoaderBase64
 	LoaderDataURL
 	LoaderURL
-	LoaderEmptyString
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {
@@ -306,10 +321,6 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 		".json": LoaderJSON,
 		".txt":  LoaderText,
 	}
-}
-
-func DefaultExtensionToMimeType() map[string]string {
-	return map[string]string{}
 }
 
 type Format uint8
@@ -356,23 +367,21 @@ type BundleOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	AbsOutputFile       string
-	AbsOutputDir        string
-	RemoveWhitespace    bool
-	MinifyIdentifiers   bool
-	MangleSyntax        bool
-	ModuleName          string
-	ExtensionToLoader   map[string]Loader
-	ExtensionToMimeType map[string]string
-	OutputFormat        Format
+	AbsOutputFile     string
+	AbsOutputDir      string
+	RemoveWhitespace  bool
+	MinifyIdentifiers bool
+	MangleSyntax      bool
+	ModuleName        string
+	ExtensionToLoader map[string]Loader
+	OutputFormat      Format
 
 	SourceMap  SourceMap
 	SourceFile string // The "original file path" for the source map
 
 	// If this isn't LoaderNone, all entry point contents are assumed to come
 	// from stdin and must be loaded with this loader
-	LoaderForStdin   Loader
-	MimeTypeForStdin string
+	LoaderForStdin Loader
 
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
@@ -1470,10 +1479,6 @@ func (b *Bundle) computeModuleGroups(
 func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
-	}
-
-	if options.ExtensionToMimeType == nil {
-		options.ExtensionToMimeType = DefaultExtensionToMimeType()
 	}
 
 	if options.OutputFormat == FormatNone {
