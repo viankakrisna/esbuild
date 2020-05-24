@@ -1,5 +1,5 @@
 {
-  "name": "esbuild",
+  "name": "@viankakrisna/esbuild",
   "version": "0.3.9",
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",

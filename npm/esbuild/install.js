@@ -50,9 +50,9 @@ function installOnWindows() {
   const exePath = path.join(__dirname, 'esbuild.exe');
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
-  } else if (installPackage('esbuild-windows-64')) {
+  } else if (installPackage('@viankakrisna/esbuild-windows-64')) {
     fs.renameSync(
-      path.join(installDir, 'node_modules', 'esbuild-windows-64', 'esbuild.exe'),
+      path.join(installDir, 'node_modules', '@viankakrisna/esbuild-windows-64', 'esbuild.exe'),
       exePath
     );
   }
@@ -69,11 +69,11 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
 
 // Pick a package to install
 if (process.platform === 'linux' && os.arch() === 'x64') {
-  installOnUnix('esbuild-linux-64');
+  installOnUnix('@viankakrisna/esbuild-linux-64');
 } else if (process.platform === 'linux' && os.arch() === 'arm64') {
-  installOnUnix('esbuild-linux-arm64');
+  installOnUnix('@viankakrisna/esbuild-linux-arm64');
 } else if (process.platform === 'darwin' && os.arch() === 'x64') {
-  installOnUnix('esbuild-darwin-64');
+  installOnUnix('@viankakrisna/esbuild-darwin-64');
 } else if (process.platform === 'win32' && os.arch() === 'x64') {
   installOnWindows();
 } else {
