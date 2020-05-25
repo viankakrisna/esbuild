@@ -46,7 +46,7 @@ function pushCommonFlags(flags, options) {
 
   if (options.sourcefile) flags.push(`--sourcefile=${options.sourcefile}`);
   if (options.target) flags.push(`--target=${options.target}`);
-  if (options.preferSuffix) flags.push(`--prefer-suffix=${options.preferSuffix}`)
+  if (options.resolve && options.resolve.extensionOrder) flags.push(`--resolve-extension-order=${options.resolve.extensionOrder.join(',')}`);
 
   if (options.minify) flags.push('--minify');
   if (options.minifySyntax) flags.push('--minify-syntax');
