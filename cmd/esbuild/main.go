@@ -233,6 +233,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		case strings.HasPrefix(arg, "--sourcefile="):
 			args.bundleOptions.SourceFile = arg[len("--sourcefile="):]
 
+		case strings.HasPrefix(arg, "--prefer-suffix="):
+			args.resolveOptions.ExtensionOrder = append([]string{arg[len("--prefer-suffix="):]}, args.resolveOptions.ExtensionOrder...)
+
 		case strings.HasPrefix(arg, "--error-limit="):
 			value, err := strconv.Atoi(arg[len("--error-limit="):])
 			if err != nil {
