@@ -1306,6 +1306,57 @@ func TestPackageJsonModule(t *testing.T) {
 	})
 }
 
+func TestTsConfigPaths(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'core/test'
+				console.log(fn())
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"core/*": ["./src/*"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/test.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1(exports, module) {
+    // /Users/user/project/src/test.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0() {
+    // /Users/user/project/src/entry.js
+    const test = __import(1 /* core/test */);
+    console.log(test.default());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserString(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
