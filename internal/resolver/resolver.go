@@ -230,7 +230,8 @@ type packageJson struct {
 }
 
 type tsConfigJson struct {
-	absPathBaseUrl *string // The absolute path of "compilerOptions.baseUrl"
+	absPathBaseUrl *string            // The absolute path of "compilerOptions.baseUrl"
+	paths          map[string]*string // The absolute paths of "compilerOptions.paths"
 }
 
 type dirInfo struct {
@@ -350,7 +351,24 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 						info.tsConfigJson.absPathBaseUrl = &baseUrl
 					}
 				}
+				if pathsJson, ok := getProperty(compilerOptionsJson, "paths"); ok {
+					if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+						info.tsConfigJson.paths = map[string]*string{}
+						for _, prop := range paths.Properties {
+
+							if key, ok := getString(prop.Key); ok && prop.Value != nil {
+
+								if value, ok := getString(*prop.Value); ok {
+									// If this is a string, it's a replacement module
+									info.tsConfigJson.paths[key] = &value
+								}
+							}
+						}
+					}
+				}
+
 			}
+
 		}
 	}
 
@@ -579,6 +597,20 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
 			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
 				return absolute, true
+			}
+		}
+
+		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.paths != nil {
+			elements := strings.Split(path, "/")
+			key := elements[0]
+			module := dirInfo.tsConfigJson.paths[key]
+			elements[0] = *module
+			elements = append([]string{dirInfo.absPath}, elements...)
+			if module != nil {
+				basePath := r.fs.Join(elements...)
+				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+					return absolute, true
+				}
 			}
 		}
 
