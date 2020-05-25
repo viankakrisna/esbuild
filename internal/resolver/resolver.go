@@ -604,12 +604,14 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 			elements := strings.Split(path, "/")
 			key := elements[0]
 			module := dirInfo.tsConfigJson.paths[key]
-			elements[0] = *module
-			elements = append([]string{dirInfo.absPath}, elements...)
 			if module != nil {
-				basePath := r.fs.Join(elements...)
-				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-					return absolute, true
+				elements[0] = *module
+				elements = append([]string{dirInfo.absPath}, elements...)
+				if module != nil {
+					basePath := r.fs.Join(elements...)
+					if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+						return absolute, true
+					}
 				}
 			}
 		}
