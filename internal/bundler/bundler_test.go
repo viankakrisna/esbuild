@@ -1316,6 +1316,7 @@ func TestTsConfigPaths(t *testing.T) {
 			"/Users/user/project/tsconfig.json": `
 				{
 					"compilerOptions": {
+						"baseUrl": ".",
 						"paths": {
 							"core": "./src"
 						}

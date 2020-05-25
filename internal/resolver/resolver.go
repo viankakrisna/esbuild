@@ -593,26 +593,28 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
 		// Handle TypeScript base URLs for TypeScript code
-		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
-			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-				return absolute, true
-			}
-		}
-
-		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.paths != nil {
-			elements := strings.Split(path, "/")
-			key := elements[0]
-			module := dirInfo.tsConfigJson.paths[key]
-			if module != nil {
-				elements[0] = *module
-				elements = append([]string{dirInfo.absPath}, elements...)
-				if module != nil {
-					basePath := r.fs.Join(elements...)
-					if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-						return absolute, true
+		if dirInfo.tsConfigJson != nil {
+			if dirInfo.tsConfigJson.absPathBaseUrl != nil {
+				basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+					return absolute, true
+				}
+				if dirInfo.tsConfigJson.paths != nil {
+					elements := strings.Split(path, "/")
+					key := elements[0]
+					module := dirInfo.tsConfigJson.paths[key]
+					if module != nil {
+						elements[0] = *module
+						elements = append([]string{*dirInfo.tsConfigJson.absPathBaseUrl}, elements...)
+						if module != nil {
+							basePath := r.fs.Join(elements...)
+							if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+								return absolute, true
+							}
+						}
 					}
 				}
+
 			}
 		}
 
