@@ -280,6 +280,53 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
+func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
+	info.tsConfigJson = &tsConfigJson{}
+
+	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
+	// format that appears to be defined by the implementation details of the
+	// TypeScript compiler.
+	//
+	// Attempt to parse it anyway by modifying the JSON parser, but just for
+	// these particular files. This is likely not a completely accurate
+	// emulation of what the TypeScript compiler does (e.g. string escape
+	// behavior may also be different).
+	options := parser.ParseJSONOptions{
+		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
+		AllowTrailingCommas: true,
+	}
+
+	if json, ok := r.parseJSON(file, options); ok {
+		if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
+			if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
+				if baseUrl, ok := getString(baseUrlJson); ok {
+					baseUrl = r.fs.Join(path, baseUrl)
+					info.tsConfigJson.absPathBaseUrl = &baseUrl
+				}
+			}
+			if pathsJson, ok := getProperty(compilerOptionsJson, "paths"); ok {
+				if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+					info.tsConfigJson.paths = map[string][]string{}
+					for _, prop := range paths.Properties {
+						if key, ok := getString(prop.Key); ok {
+							if value, ok := getProperty(pathsJson, key); ok {
+								if array, ok := value.Data.(*ast.EArray); ok {
+									for _, item := range array.Items {
+										if str, ok := getString(item); ok {
+											// If this is a string, it's a replacement module
+											info.tsConfigJson.paths[key] = append(info.tsConfigJson.paths[key], str)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	// Get the info for the parent directory
 	var parentInfo *dirInfo
@@ -328,54 +375,11 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	}
 
-	// Record if this directory has a tsconfig.json file
+	// Record if this directory has a tsconfig.json or jsconfig.json file
 	if entries["tsconfig.json"].Kind == fs.FileEntry {
-		info.tsConfigJson = &tsConfigJson{}
-
-		// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
-		// format that appears to be defined by the implementation details of the
-		// TypeScript compiler.
-		//
-		// Attempt to parse it anyway by modifying the JSON parser, but just for
-		// these particular files. This is likely not a completely accurate
-		// emulation of what the TypeScript compiler does (e.g. string escape
-		// behavior may also be different).
-		options := parser.ParseJSONOptions{
-			AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
-			AllowTrailingCommas: true,
-		}
-
-		if json, ok := r.parseJSON(r.fs.Join(path, "tsconfig.json"), options); ok {
-			if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
-				if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
-					if baseUrl, ok := getString(baseUrlJson); ok {
-						baseUrl := r.fs.Join(path, baseUrl)
-						info.tsConfigJson.absPathBaseUrl = &baseUrl
-					}
-				}
-				if pathsJson, ok := getProperty(compilerOptionsJson, "paths"); ok {
-					if paths, ok := pathsJson.Data.(*ast.EObject); ok {
-						info.tsConfigJson.paths = map[string][]string{}
-						for _, prop := range paths.Properties {
-							if key, ok := getString(prop.Key); ok {
-								if value, ok := getProperty(pathsJson, key); ok {
-									if array, ok := value.Data.(*ast.EArray); ok {
-										for _, item := range array.Items {
-											if str, ok := getString(item); ok {
-												// If this is a string, it's a replacement module
-												info.tsConfigJson.paths[key] = append(info.tsConfigJson.paths[key], str)
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-
-			}
-
-		}
+		r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, info)
+	} else if entries["jsconfig.json"].Kind == fs.FileEntry {
+		r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, info)
 	}
 
 	// Is the "main" field from "package.json" missing?
