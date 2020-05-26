@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	fp "path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -590,6 +592,11 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	return "", false
 }
 
+func resolvePathWithourStar(from, path string) (string, error) {
+	replaced := strings.Replace(path, "/*", "", -1)
+	return fp.Join(from, replaced), nil
+}
+
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
 		// Handle TypeScript base URLs for TypeScript code
@@ -600,18 +607,22 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 					return absolute, true
 				}
 				if dirInfo.tsConfigJson.paths != nil {
-					elements := strings.Split(path, "/")
-					key := elements[0]
-					module := dirInfo.tsConfigJson.paths[key]
-					if module != nil {
-						elements[0] = *module
-						elements = append([]string{*dirInfo.tsConfigJson.absPathBaseUrl}, elements...)
-						if module != nil {
-							basePath := r.fs.Join(elements...)
-							if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-								return absolute, true
+					for key, originalPath := range dirInfo.tsConfigJson.paths {
+						if matched, err := regexp.MatchString(key, path); matched && err == nil {
+							if absoluteOriginalPath, err := resolvePathWithourStar(*dirInfo.tsConfigJson.absPathBaseUrl, *originalPath); err == nil {
+								elements := strings.Split(path, "/")
+
+								elements = elements[1:]
+
+								resolved := append([]string{absoluteOriginalPath}, elements...)
+								basePath := r.fs.Join(resolved...)
+
+								if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+									return absolute, true
+								}
 							}
 						}
+
 					}
 				}
 

@@ -1318,7 +1318,7 @@ func TestTsConfigPaths(t *testing.T) {
 					"compilerOptions": {
 						"baseUrl": ".",
 						"paths": {
-							"core": "./src"
+							"core/*": "./src/*"
 						}
 					}
 				}
