@@ -333,3 +333,8 @@ bench-rome-parcel: | node_modules bench/rome
 	mkdir -p bench/rome/parcel
 	cd bench/rome/parcel && time -p ../../../node_modules/.bin/parcel build ../src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
+
+test-td: | esbuild
+	cp esbuild ../td-apps/node_modules/@viankakrisna/esbuild/bin/esbuild
+	cd ../td-apps && yarn desktop start-webpack
+	
