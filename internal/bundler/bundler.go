@@ -177,6 +177,12 @@ func parseFile(
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source, ast, true}
+
+	case LoaderEmpty:
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("")}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source, ast, true}
+
 	default:
 		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", absolutePath))
 		results <- parseResult{}
@@ -316,6 +322,7 @@ const (
 	LoaderBase64
 	LoaderDataURL
 	LoaderURL
+	LoaderEmpty
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {

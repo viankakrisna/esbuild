@@ -343,5 +343,5 @@ bench-rome-parcel: | node_modules bench/rome
 
 test-td: | esbuild
 	cp esbuild ../td-apps/node_modules/@viankakrisna/esbuild/bin/esbuild
-	cd ../td-apps && yarn desktop start-webpack
+	cd ../td-apps && yarn test && yarn desktop start
 	
