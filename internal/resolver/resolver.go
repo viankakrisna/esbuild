@@ -614,7 +614,11 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 				if dirInfo.tsConfigJson.paths != nil {
 					for key, originalPaths := range dirInfo.tsConfigJson.paths {
 						for _, originalPath := range originalPaths {
+<<<<<<< HEAD
 							if matched, err := regexp.MatchString("^"+key, path); matched && err == nil {
+=======
+							if matched, err := regexp.MatchString(key, path); matched && err == nil {
+>>>>>>> 54f8951223f54b8f20b27beb73105910fe23b936
 								if absoluteOriginalPath, err := resolvePathWithoutStar(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath); err == nil {
 									elements := strings.Split(path, "/")
 
