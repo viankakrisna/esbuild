@@ -46,7 +46,7 @@ Options:
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64, url, dataurl
+                        one of: js, jsx, ts, tsx, json, text, base64, file, dataurl
 
 Advanced options:
   --version             Print the current version and exit (` + esbuildVersion + `)
@@ -642,9 +642,9 @@ func run(fs fs.FS, args argsObject) {
 		}
 		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.JsContents))))
 
+		// Write out the additional files
 		for _, file := range item.AdditionalFiles {
 			if file.Path != "" {
-				// Write out the JavaScript file
 				err := ioutil.WriteFile(file.Path, []byte(file.Contents), 0644)
 				path := resolver.PrettyPath(file.Path)
 				if err != nil {

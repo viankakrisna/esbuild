@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -110,10 +109,7 @@ func parseFile(
 	}
 
 	// Get the file extension
-	extension := ""
-	if lastDot := strings.LastIndexByte(sourcePath, '.'); lastDot >= 0 {
-		extension = sourcePath[lastDot:]
-	}
+	extension := path.Ext(sourcePath)
 
 	// Pick the loader based on the file extension
 	loader := bundleOptions.ExtensionToLoader[extension]
@@ -444,6 +440,13 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	var results []BundleResult
 	for _, group := range resultGroups {
 		results = append(results, group...)
+		for _, bundle := range group {
+			for _, additionalFile := range bundle.AdditionalFiles {
+				if additionalFile.Path != "" {
+					results = append(results, BundleResult{additionalFile.Path, []byte(additionalFile.Contents), "", []byte(""), []AdditionalFile{}})
+				}
+			}
+		}
 	}
 	return results
 }
