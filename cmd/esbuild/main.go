@@ -177,8 +177,8 @@ func (args *argsObject) parseLoader(text string) bundler.Loader {
 		return bundler.LoaderDataURL
 	case "empty":
 		return bundler.LoaderEmpty
-	case "url":
-		return bundler.LoaderURL
+	case "file":
+		return bundler.LoaderFile
 	default:
 		return bundler.LoaderNone
 	}
@@ -642,6 +642,17 @@ func run(fs fs.FS, args argsObject) {
 		}
 		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.JsContents))))
 
+		for _, file := range item.AdditionalFiles {
+			if file.Path != "" {
+				// Write out the JavaScript file
+				err := ioutil.WriteFile(file.Path, []byte(file.Contents), 0644)
+				path := resolver.PrettyPath(file.Path)
+				if err != nil {
+					exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
+				}
+				args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(file.Contents))))
+			}
+		}
 		// Also write the source map
 		if item.SourceMapAbsPath != "" {
 			err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
