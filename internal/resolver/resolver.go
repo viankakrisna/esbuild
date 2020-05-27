@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	fp "path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -600,9 +598,15 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	return "", false
 }
 
-func resolvePathWithoutStar(from, path string) (string, error) {
-	replaced := strings.Replace(path, "/*", "", -1)
-	return fp.Join(from, replaced), nil
+func isTsConfigPathMatch(pattern string, path string) (string, bool) {
+	starIndex := strings.IndexRune(pattern, '*')
+	elements := strings.Split(pattern, "*")
+	if starIndex == 0 {
+		suffix := elements[1]
+		return strings.Replace(path, suffix, "", 1), strings.HasSuffix(path, suffix)
+	}
+	prefix := elements[0]
+	return strings.Replace(path, prefix, "", 1), strings.HasPrefix(path, prefix)
 }
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
@@ -614,28 +618,20 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 				if dirInfo.tsConfigJson.paths != nil {
 					for key, originalPaths := range dirInfo.tsConfigJson.paths {
 						for _, originalPath := range originalPaths {
-							if matched, err := regexp.MatchString("^"+key, path); matched && err == nil {
-								if absoluteOriginalPath, err := resolvePathWithoutStar(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath); err == nil {
-									elements := strings.Split(path, "/")
-
-									elements = elements[1:]
-
-									resolved := append([]string{absoluteOriginalPath}, elements...)
-									basePath := r.fs.Join(resolved...)
-
-									if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-										return absolute, true
-									}
+							if parts, ok := isTsConfigPathMatch(key, path); ok {
+								absoluteOriginalPath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath)
+								basePath := strings.Replace(absoluteOriginalPath, "*", parts, 1)
+								if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+									return absolute, true
 								}
 							}
 						}
 
 					}
-				} else {
-					basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-					if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-						return absolute, true
-					}
+				}
+				basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+					return absolute, true
 				}
 
 			}
