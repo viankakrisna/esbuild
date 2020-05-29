@@ -22,6 +22,13 @@ function esbuildSpawn({ flags, stdio }) {
     });
   }
 
+  if (process.platform === 'linux' && os.arch() === 'ppc64' && os.endianness() === 'LE') {
+    return child_process.spawn(path.join(__dirname, '..', 'bin', 'esbuild'), flags, {
+      cwd: process.cwd(),
+      stdio,
+    });
+  }
+
   if (process.platform === 'win32' && os.arch() === 'x64') {
     if (WASM) {
       return child_process.spawn('node', [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
@@ -88,6 +95,7 @@ exports.build = options => {
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
     if (options.logLevel) flags.push(`--log-level=${options.logLevel}`);
+    if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 

@@ -83,11 +83,21 @@ func expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		assertEqual(t, len(results), len(args.expected))
+		// Don't include source maps in results since they are just noise. Source
+		// map validity is tested separately in a test that uses Mozilla's source
+		// map parsing library.
+		resultsWithoutSourceMaps := []OutputFile{}
 		for _, result := range results {
-			file := args.expected[result.JsAbsPath]
-			path := "[" + result.JsAbsPath + "]\n"
-			assertEqual(t, path+string(result.JsContents), path+file)
+			if !strings.HasSuffix(result.AbsPath, ".map") {
+				resultsWithoutSourceMaps = append(resultsWithoutSourceMaps, result)
+			}
+		}
+
+		assertEqual(t, len(resultsWithoutSourceMaps), len(args.expected))
+		for _, result := range resultsWithoutSourceMaps {
+			file := args.expected[result.AbsPath]
+			path := "[" + result.AbsPath + "]\n"
+			assertEqual(t, path+string(result.Contents), path+file)
 		}
 	})
 }
@@ -1398,27 +1408,115 @@ console.log(main_esm_default());
 func TestTsConfigPaths(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import fn from 'core/test'
-				console.log(fn())
+			"/Users/user/project/entry.ts": `
+				import baseurl_dot from './baseurl_dot'
+				import baseurl_nested from './baseurl_nested'
+				console.log(baseurl_dot, baseurl_nested)
 			`,
-			"/Users/user/project/tsconfig.json": `
+
+			// Tests with "baseUrl": "."
+			"/Users/user/project/baseurl_dot/index.ts": `
+				import test0 from 'test0'
+				import test1 from 'test1/foo'
+				import test2 from 'test2/foo'
+				import test3 from 'test3/foo'
+				import test4 from 'test4/foo'
+				import test5 from 'test5/foo'
+				export default {
+					test0,
+					test1,
+					test2,
+					test3,
+					test4,
+					test5,
+				}
+			`,
+			"/Users/user/project/baseurl_dot/tsconfig.json": `
 				{
 					"compilerOptions": {
 						"baseUrl": ".",
 						"paths": {
-							"core/*": ["./src/*"]
+							"test0": ["./test0-success.ts"],
+							"test1/*": ["./test1-success.ts"],
+							"test2/*": ["./test2-success/*"],
+							"t*t3/foo": ["./test3-succ*s.ts"],
+							"test4/*": ["./test4-first/*", "./test4-second/*"],
+							"test5/*": ["./test5-first/*", "./test5-second/*"],
 						}
 					}
 				}
 			`,
-			"/Users/user/project/src/test.js": `
-				module.exports = function() {
-					return 123
+			"/Users/user/project/baseurl_dot/test0-success.ts": `
+				export default 'test0-success'
+			`,
+			"/Users/user/project/baseurl_dot/test1-success.ts": `
+				export default 'test1-success'
+			`,
+			"/Users/user/project/baseurl_dot/test2-success/foo.ts": `
+				export default 'test2-success'
+			`,
+			"/Users/user/project/baseurl_dot/test3-success.ts": `
+				export default 'test3-success'
+			`,
+			"/Users/user/project/baseurl_dot/test4-first/foo.ts": `
+				export default 'test4-success'
+			`,
+			"/Users/user/project/baseurl_dot/test5-second/foo.ts": `
+				export default 'test5-success'
+			`,
+
+			// Tests with "baseUrl": "nested"
+			"/Users/user/project/baseurl_nested/index.ts": `
+				import test0 from 'test0'
+				import test1 from 'test1/foo'
+				import test2 from 'test2/foo'
+				import test3 from 'test3/foo'
+				import test4 from 'test4/foo'
+				import test5 from 'test5/foo'
+				export default {
+					test0,
+					test1,
+					test2,
+					test3,
+					test4,
+					test5,
 				}
 			`,
+			"/Users/user/project/baseurl_nested/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "nested",
+						"paths": {
+							"test0": ["./test0-success.ts"],
+							"test1/*": ["./test1-success.ts"],
+							"test2/*": ["./test2-success/*"],
+							"t*t3/foo": ["./test3-succ*s.ts"],
+							"test4/*": ["./test4-first/*", "./test4-second/*"],
+							"test5/*": ["./test5-first/*", "./test5-second/*"],
+						}
+					}
+				}
+			`,
+			"/Users/user/project/baseurl_nested/nested/test0-success.ts": `
+				export default 'test0-success'
+			`,
+			"/Users/user/project/baseurl_nested/nested/test1-success.ts": `
+				export default 'test1-success'
+			`,
+			"/Users/user/project/baseurl_nested/nested/test2-success/foo.ts": `
+				export default 'test2-success'
+			`,
+			"/Users/user/project/baseurl_nested/nested/test3-success.ts": `
+				export default 'test3-success'
+			`,
+			"/Users/user/project/baseurl_nested/nested/test4-first/foo.ts": `
+				export default 'test4-success'
+			`,
+			"/Users/user/project/baseurl_nested/nested/test5-second/foo.ts": `
+				export default 'test5-success'
+			`,
 		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
 		},
@@ -1427,16 +1525,64 @@ func TestTsConfigPaths(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/test.js
-var require_test = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
-});
+			"/Users/user/project/out.js": `// /Users/user/project/baseurl_dot/test0-success.ts
+const test0_success_default = "test0-success";
 
-// /Users/user/project/src/entry.js
-const test = __toModule(require_test());
-console.log(test.default());
+// /Users/user/project/baseurl_dot/test1-success.ts
+const test1_success_default = "test1-success";
+
+// /Users/user/project/baseurl_dot/test2-success/foo.ts
+const foo_default = "test2-success";
+
+// /Users/user/project/baseurl_dot/test3-success.ts
+const test3_success_default = "test3-success";
+
+// /Users/user/project/baseurl_dot/test4-first/foo.ts
+const foo_default2 = "test4-success";
+
+// /Users/user/project/baseurl_dot/test5-second/foo.ts
+const foo_default3 = "test5-success";
+
+// /Users/user/project/baseurl_dot/index.ts
+const index_default = {
+  test0: test0_success_default,
+  test1: test1_success_default,
+  test2: foo_default,
+  test3: test3_success_default,
+  test4: foo_default2,
+  test5: foo_default3
+};
+
+// /Users/user/project/baseurl_nested/nested/test0-success.ts
+const test0_success_default2 = "test0-success";
+
+// /Users/user/project/baseurl_nested/nested/test1-success.ts
+const test1_success_default2 = "test1-success";
+
+// /Users/user/project/baseurl_nested/nested/test2-success/foo.ts
+const foo_default4 = "test2-success";
+
+// /Users/user/project/baseurl_nested/nested/test3-success.ts
+const test3_success_default2 = "test3-success";
+
+// /Users/user/project/baseurl_nested/nested/test4-first/foo.ts
+const foo_default5 = "test4-success";
+
+// /Users/user/project/baseurl_nested/nested/test5-second/foo.ts
+const foo_default6 = "test5-success";
+
+// /Users/user/project/baseurl_nested/index.ts
+const index_default2 = {
+  test0: test0_success_default2,
+  test1: test1_success_default2,
+  test2: foo_default4,
+  test3: test3_success_default2,
+  test4: foo_default5,
+  test5: foo_default6
+};
+
+// /Users/user/project/entry.ts
+console.log(index_default, index_default2);
 `,
 		},
 	})
@@ -2633,10 +2779,10 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.svg": "<svg></svg>",
+			"/out/test.ntXZxVw0.svg": "<svg></svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.svg";
+  module.exports = "test.ntXZxVw0.svg";
 });
 
 // /entry.js
@@ -4409,6 +4555,57 @@ function test5() {
     var shouldNotBeRenamed;
   }
 }
+`,
+		},
+	})
+}
+
+func TestImportReExportES6Issue149(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/app.jsx": `
+				import { p as Part, h, render } from './import';
+				import { Internal } from './in2';
+				const App = () => <Part> <Internal /> T </Part>;
+				render(<App />, document.getElementById('app'));
+			`,
+			"/in2.jsx": `
+				import { p as Part, h } from './import';
+				export const Internal = () => <Part> Test 2 </Part>;
+			`,
+			"/import.js": `
+				import { h, render } from 'preact';
+				export const p = "p";
+				export { h, render }
+			`,
+		},
+		entryPaths: []string{"/app.jsx"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			JSX: parser.JSXOptions{
+				Factory: []string{"h"},
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			ExternalModules: map[string]bool{
+				"preact": true,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /import.js
+import {h, render} from "preact";
+const p = "p";
+
+// /in2.jsx
+const Internal = () => h(p, null, " Test 2 ");
+
+// /app.jsx
+const App = () => h(p, null, h(Internal, null), " T ");
+render(h(App, null), document.getElementById("app"));
 `,
 		},
 	})

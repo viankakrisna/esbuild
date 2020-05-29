@@ -241,12 +241,13 @@ Options:
                         one of: js, jsx, ts, tsx, json, text, base64, file, dataurl
 
 Advanced options:
-  --version             Print the current version and exit
-  --sourcemap=inline    Emit the source map with an inline data URL
-  --sourcemap=external  Do not link to the source map with a comment
-  --sourcefile=...      Set the source file for the source map (for stdin)
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
-  --log-level=...       Disable logging (info, warning, error)
+  --version                 Print the current version and exit
+  --sourcemap=inline        Emit the source map with an inline data URL
+  --sourcemap=external      Do not link to the source map with a comment
+  --sourcefile=...          Set the source file for the source map (for stdin)
+  --error-limit=...         Maximum error count or 0 to disable (default 10)
+  --log-level=...           Disable logging (info, warning, error)
+  --resolve-extensions=...  A comma-separated list of implicit extensions
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
@@ -330,7 +331,7 @@ To use esbuild with [React](https://reactjs.org/):
 
 * Either put all JSX syntax in `.jsx` files instead of `.js` files, or use `--loader:.js=jsx` to use the JSX loader for `.js` files.
 
-* If you're using TypeScript, pass esbuild your `.tsx` file as the entry point. There should be no need to convert TypeScript files to JavaScript first because because esbuild parses TypeScript syntax itself.
+* If you're using TypeScript, pass esbuild your `.tsx` file as the entry point. There should be no need to convert TypeScript files to JavaScript first because esbuild parses TypeScript syntax itself.
 
     *Note that esbuild does not do any type checking, so you'll want to run `tsc -noEmit` in parallel to check types.*
 

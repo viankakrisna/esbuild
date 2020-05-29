@@ -334,12 +334,12 @@ func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text s
 	c.hasErrors = true
 }
 
-func (c *linkerContext) link() []BundleResult {
+func (c *linkerContext) link() []OutputFile {
 	c.scanImportsAndExports()
 
 	// Stop now if there were errors
 	if c.hasErrors {
-		return []BundleResult{}
+		return []OutputFile{}
 	}
 
 	c.markPartsReachableFromEntryPoints()
@@ -357,10 +357,10 @@ func (c *linkerContext) link() []BundleResult {
 	c.renameOrMinifyAllSymbols()
 
 	chunks := c.computeChunks()
-	results := make([]BundleResult, 0, len(chunks))
+	results := make([]OutputFile, 0, len(chunks))
 
 	for _, chunk := range chunks {
-		results = append(results, c.generateChunk(chunk))
+		results = append(results, c.generateChunk(chunk)...)
 	}
 
 	return results
@@ -804,19 +804,22 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				c.fileMeta[sourceIndex].isProbablyTypeScriptType[importRef] = true
 
 			case importFound:
+				// Defer the actual binding of this import until after we generate
+				// namespace export code for all files. This has to be done for all
+				// import-to-export matches, not just the initial import to the final
+				// export, since all imports and re-exports must be merged together
+				// for correctness.
+				fileMeta := &c.fileMeta[sourceIndex]
+				fileMeta.importsToBind[importRef] = importToBind{
+					sourceIndex: nextTracker.sourceIndex,
+					ref:         nextTracker.importRef,
+				}
+
 				// If this is a re-export of another import, continue for another
 				// iteration of the loop to resolve that import as well
 				if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; ok {
 					tracker = nextTracker
 					continue
-				}
-
-				// Defer the actual binding of this import until after we generate
-				// namespace export code for all files
-				fileMeta := &c.fileMeta[sourceIndex]
-				fileMeta.importsToBind[importRef] = importToBind{
-					sourceIndex: nextTracker.sourceIndex,
-					ref:         nextTracker.importRef,
 				}
 
 			default:
@@ -1710,8 +1713,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup.Done()
 }
 
-func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
-	additionalFiles := []AdditionalFile{}
+func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members
@@ -1738,10 +1740,15 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	for _, sourceIndex := range filesInChunkInOrder {
 		file := c.files[sourceIndex]
 
-		additionalFiles = append(additionalFiles, file.additionalFile)
 		// Skip the runtime in test output
 		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
+		}
+
+		// Each file may optionally contain an additional file to be copied to the
+		// output directory. This is used by the "file" loader.
+		if file.additionalFile != nil {
+			results = append(results, *file.additionalFile)
 		}
 
 		// Create a goroutine for this file
@@ -1855,10 +1862,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		j.AddString("\n")
 	}
 
-	result := BundleResult{
-		AdditionalFiles: additionalFiles,
-		JsAbsPath:       c.fs.Join(c.options.AbsOutputDir, chunk.name),
-	}
+	jsAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.name)
 
 	if c.options.SourceMap != SourceMapNone {
 		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
@@ -1871,20 +1875,25 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			j.AddString("\n")
 
 		case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
-			result.SourceMapAbsPath = result.JsAbsPath + ".map"
-			result.SourceMapContents = sourceMap
+			results = append(results, OutputFile{
+				AbsPath:  jsAbsPath + ".map",
+				Contents: sourceMap,
+			})
 
 			// Add a comment linking the source to its map
 			if c.options.SourceMap == SourceMapLinkedWithComment {
 				j.AddString("//# sourceMappingURL=")
-				j.AddString(c.fs.Base(result.SourceMapAbsPath))
+				j.AddString(c.fs.Base(jsAbsPath + ".map"))
 				j.AddString("\n")
 			}
 		}
 	}
 
-	result.JsContents = j.Done()
-	return result
+	results = append(results, OutputFile{
+		AbsPath:  jsAbsPath,
+		Contents: j.Done(),
+	})
+	return
 }
 
 func (offset *lineColumnOffset) advance(text string) {

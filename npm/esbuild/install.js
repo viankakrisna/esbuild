@@ -72,6 +72,8 @@ if (process.platform === 'linux' && os.arch() === 'x64') {
   installOnUnix('@viankakrisna/esbuild-linux-64');
 } else if (process.platform === 'linux' && os.arch() === 'arm64') {
   installOnUnix('@viankakrisna/esbuild-linux-arm64');
+} else if (process.platform === 'linux' && os.arch() === 'ppc64' && os.endianness() === 'LE') {
+  installOnUnix('@viankakrisna/esbuild-linux-ppc64le');
 } else if (process.platform === 'darwin' && os.arch() === 'x64') {
   installOnUnix('@viankakrisna/esbuild-darwin-64');
 } else if (process.platform === 'win32' && os.arch() === 'x64') {
