@@ -4070,7 +4070,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Unexpected()
 			}
 
-			defaultIdentifier := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
+			defaultIdentifier := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath, false) + "_default"
 			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, defaultIdentifier)}
 			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 			p.lexer.Next()
@@ -4763,7 +4763,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
-			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
+			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text, false)
 			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
@@ -6245,7 +6245,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SExportFrom:
 		// Generate a symbol for the namespace
-		name := ast.GenerateNonUniqueNameFromPath(s.Path.Text)
+		name := ast.GenerateNonUniqueNameFromPath(s.Path.Text, false)
 		namespaceRef := p.newSymbol(ast.SymbolOther, name)
 		p.currentScope.Generated = append(p.currentScope.Generated, namespaceRef)
 		s.NamespaceRef = namespaceRef
@@ -9110,7 +9110,7 @@ func (p *parser) prepareForVisitPass() {
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string) ast.AST {
 	// Make a wrapper symbol in case we need to be wrapped in a closure
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
-		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))
+		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath, false))
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)

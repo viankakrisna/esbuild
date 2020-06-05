@@ -2029,7 +2029,7 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 			// actual CommonJS files from being renamed. This is purely about
 			// aesthetics and is not about correctness.
 			if !fileMeta.cjsStyleExports {
-				name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
+				name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath, true)
 				c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
 				c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
 			}

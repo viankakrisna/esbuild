@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"path"
 	"strings"
 )
 
@@ -1214,8 +1215,11 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	return new
 }
 
-func GenerateNonUniqueNameFromPath(filePath string) string {
-	base := filePath
+func GenerateNonUniqueNameFromPath(filePath string, useFullPath bool) string {
+	base := path.Base(filePath)
+	if useFullPath {
+		base = filePath
+	}
 	// Get the file name without the extension
 	lastDot := strings.LastIndexByte(base, '.')
 	if lastDot >= 0 {
