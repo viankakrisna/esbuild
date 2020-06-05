@@ -2779,10 +2779,10 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.ntXZxVw0.svg": "<svg></svg>",
+			"/out/test.9ed5d9c5.svg": "<svg></svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.ntXZxVw0.svg";
+  module.exports = "test.9ed5d9c5.svg";
 });
 
 // /entry.js
