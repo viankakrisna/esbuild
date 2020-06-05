@@ -46,7 +46,7 @@ let buildTests = {
     assert.strictEqual(json.version, 3)
   },
 
-  async resolveExtensionOrder({ esbuild }) {
+  async resolveExtensions({ esbuild }) {
     const input = path.join(testDir, '4-in.js');
     const inputBare = path.join(testDir, '4-module.js')
     const inputSomething = path.join(testDir, '4-module.something.js')
