@@ -3,6 +3,7 @@ package bundler
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -181,7 +182,7 @@ func parseFile(
 		// but different contents from colliding
 		bytes := []byte(source.Contents)
 		hashBytes := sha1.Sum(bytes)
-		hash := base64.StdEncoding.EncodeToString(hashBytes[:])[:8]
+		hash := hex.EncodeToString(hashBytes[:])[:8]
 		baseName = baseName[:len(baseName)-len(extension)] + "." + hash + extension
 
 		// Determine the destination folder
