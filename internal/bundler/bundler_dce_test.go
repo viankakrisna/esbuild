@@ -110,15 +110,15 @@ func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const index_exports = {};
-__export(index_exports, {
+const Users_user_project_node_modules_demo_pkg_index_exports = {};
+__export(Users_user_project_node_modules_demo_pkg_index_exports, {
   foo: () => foo
 });
 const foo = 123;
 console.log("hello");
 
 // /Users/user/project/src/entry.js
-console.log(index_exports);
+console.log(Users_user_project_node_modules_demo_pkg_index_exports);
 `,
 		},
 	})
