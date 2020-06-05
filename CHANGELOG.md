@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+* Shorten numeric literals ([#122](https://github.com/evanw/esbuild/issues/122))
+
+    Certain numeric literals now use shorter representations in the generated JavaScript code. For example, `123400000` is now written out as `1234e5`.
+
+## 0.4.7
+
+* Fixed `sideEffects` and nested directories
+
+    This fixes a bug where `package.json` files with `"sideEffects": false` were not respected for files in nested directories. When this bug occurred, bundles could be bigger than necessary. The `sideEffects` hint is now respected if any parent directory contains the hint instead of just the immediate enclosing directory.
+
+* Fixed `sideEffects` and default exports with side effects
+
+    This fixes a bug with default exports with side effects inside a `"sideEffects": false` context that were imported and used. These exports were incorrectly discarded instead of being retained, which could cause the resulting bundle to crash.
+
+## 0.4.6
+
+* Respect the `sideEffects` field when tree shaking ([#50](https://github.com/evanw/esbuild/issues/50))
+
+    Tree shaking now respects `"sideEffects": false` in `package.json`, which means esbuild now generates smaller bundles with certain libraries such as [lodash-es](https://www.npmjs.com/package/lodash-es). This setting is a [convention from Webpack](https://webpack.js.org/guides/tree-shaking/#mark-the-file-as-side-effect-free). Any files in a package with this setting will not be included in the bundle if they are imported using an ES6 import and then never used.
+
+## 0.4.5
+
+* Fix a crash with more than 8 entry points ([#162](https://github.com/evanw/esbuild/pull/162))
+
+    This bug was due to the wrong index being used for an internal bit set. That caused a crash due to an out-of-bounds array read when esbuild is run with more than 8 entry points. I now have test coverage for large numbers of entry points, so this should not happen again.
+
+* Fix slash characters in file loader ([#164](https://github.com/evanw/esbuild/pull/164))
+
+    This fixes a bug where the base64-encoded hash included in the file name could sometimes contain a `/` character. The fix is to use the base64 character set for URL-encoding, which replaces the `/` character with a `_` character.
+
+## 0.4.4
+
+* Fix optional chaining with TypeScript operators ([#168](https://github.com/evanw/esbuild/issues/168))
+
+    The work on optional chaining in the previous release introduced a regression where the TypeScript infix operators `!` and `<>` incorrectly stopped the propagation of optional chaining. That meant `a?.b!()` and `a?.b<T>()` incorrectly behaved like `(a?.b)()` instead of `a?.b()`. This now has test coverage.
+
 * Add support for the `"paths"` field in `tsconfig.json` ([#60](https://github.com/evanw/esbuild/issues/60) and [#144](https://github.com/evanw/esbuild/issues/144))
 
     This provides a way of remapping module paths to local file paths. It's relatively powerful because it supports wildcard patterns and multiple fallback locations. See [the documentation in the TypeScript handbook](https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping) for more information about how this feature works. This was contributed by [@viankakrisna](https://github.com/viankakrisna).

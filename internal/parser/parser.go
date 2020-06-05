@@ -2792,6 +2792,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 				return left
 			}
 			p.lexer.Next()
+			optionalChain = oldOptionalChain
 
 		case lexer.TMinusMinus:
 			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
@@ -2931,6 +2932,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			// inside an expression. Unlike in other languages, this unfortunately
 			// appears to require backtracking to parse.
 			if p.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+				optionalChain = oldOptionalChain
 				continue
 			}
 
@@ -8658,6 +8660,12 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []ast.Stmt) bool {
 		case *ast.SFunction, *ast.SEmpty:
 			// These never have side effects
 
+		case *ast.SImport:
+			// Let these be removed if they are unused. Note that we also need to
+			// check if the imported file is marked as "sideEffects: false" before we
+			// can remove a SImport statement. Otherwise the import must be kept for
+			// its side effects.
+
 		case *ast.SClass:
 			if !p.classCanBeRemovedIfUnused(s.Class) {
 				return false
@@ -9038,11 +9046,6 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		// Map locals to parts
 		p.topLevelSymbolToParts = make(map[ast.Ref][]uint32)
 		for partIndex, part := range parts {
-			if !part.CanBeRemovedIfUnused {
-				// Optimization: skip this if there are side effects because it'll have
-				// to be included anyway
-				continue
-			}
 			for _, declared := range part.DeclaredSymbols {
 				if declared.IsTopLevel {
 					p.topLevelSymbolToParts[declared.Ref] = append(
