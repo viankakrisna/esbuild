@@ -130,7 +130,7 @@ func validateLoader(value Loader) bundler.Loader {
 		return bundler.LoaderFile
 	default:
 		panic("Invalid loader")
-		return ^bundler.Loader(0)
+		return bundler.Loader("LoaderNone")
 	}
 }
 
@@ -157,14 +157,17 @@ func validateResolveExtensions(log logging.Log, order []string) []string {
 	return order
 }
 
-func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]bundler.Loader {
+func validateLoaders(log logging.Log, loadersMap map[string][]Loader) map[string][]bundler.Loader {
 	result := bundler.DefaultExtensionToLoaderMap()
-	if loaders != nil {
-		for ext, loader := range loaders {
+	if loadersMap != nil {
+		for ext, loaders := range loadersMap {
 			if len(ext) < 2 || ext[0] != '.' || strings.ContainsRune(ext[1:], '.') {
 				log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
-			result[ext] = validateLoader(loader)
+			result[ext] = []bundler.Loader{}
+			for _, loader := range loaders {
+				result[ext] = append(result[ext], validateLoader(loader))
+			}
 		}
 	}
 	return result
@@ -363,10 +366,12 @@ func buildImpl(options BuildOptions) BuildResult {
 		if bundleOptions.AbsMetadataFile != "" {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"metafile\" without an output path")
 		}
-		for _, loader := range bundleOptions.ExtensionToLoader {
-			if loader == bundler.LoaderFile {
-				log.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
-				break
+		for _, loaders := range bundleOptions.ExtensionToLoader {
+			for _, loader := range loaders {
+				if loader == bundler.LoaderFile {
+					log.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
+					break
+				}
 			}
 		}
 	}

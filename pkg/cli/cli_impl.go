@@ -14,7 +14,7 @@ import (
 
 func newBuildOptions() api.BuildOptions {
 	return api.BuildOptions{
-		Loaders: make(map[string]api.Loader),
+		Loaders: make(map[string][]api.Loader),
 		Defines: make(map[string]string),
 	}
 }
@@ -127,11 +127,15 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Missing \"=\": %q", value)
 			}
 			ext, text := value[:equals], value[equals+1:]
-			loader, err := parseLoader(text)
-			if err != nil {
-				return err
+
+			buildOpts.Loaders[ext] = []api.Loader{}
+			for _, loaderText := range strings.Split(text, ",") {
+				loader, err := parseLoader(loaderText)
+				if err != nil {
+					return err
+				}
+				buildOpts.Loaders[ext] = append(buildOpts.Loaders[ext], loader)
 			}
-			buildOpts.Loaders[ext] = loader
 
 		case strings.HasPrefix(arg, "--loader=") && transformOpts != nil:
 			value := arg[len("--loader="):]

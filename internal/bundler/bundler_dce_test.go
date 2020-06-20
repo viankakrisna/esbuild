@@ -726,9 +726,9 @@ func TestBase64LoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderBase64,
+			ExtensionToLoader: map[string][]Loader{
+				".js":   {LoaderJS},
+				".data": {LoaderBase64},
 			},
 		},
 		expected: map[string]string{
@@ -755,9 +755,9 @@ func TestDataURLLoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderDataURL,
+			ExtensionToLoader: map[string][]Loader{
+				".js":   {LoaderJS},
+				".data": {LoaderDataURL},
 			},
 		},
 		expected: map[string]string{
@@ -784,9 +784,9 @@ func TestFileLoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderFile,
+			ExtensionToLoader: map[string][]Loader{
+				".js":   {LoaderJS},
+				".data": {LoaderFile},
 			},
 		},
 		expected: map[string]string{

@@ -1051,8 +1051,8 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js": LoaderJSX,
+			ExtensionToLoader: map[string][]Loader{
+				".js": {LoaderJSX},
 			},
 		},
 		expected: map[string]string{
@@ -2694,9 +2694,9 @@ func TestRequireCustomExtensionString(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderText,
+			ExtensionToLoader: map[string][]Loader{
+				".js":     {LoaderJS},
+				".custom": {LoaderText},
 			},
 		},
 		expected: map[string]string{
@@ -2727,9 +2727,9 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderBase64,
+			ExtensionToLoader: map[string][]Loader{
+				".js":     {LoaderJS},
+				".custom": {LoaderBase64},
 			},
 		},
 		expected: map[string]string{
@@ -2760,9 +2760,9 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderDataURL,
+			ExtensionToLoader: map[string][]Loader{
+				".js":     {LoaderJS},
+				".custom": {LoaderDataURL},
 			},
 		},
 		expected: map[string]string{
@@ -2793,9 +2793,9 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".svg": LoaderDataURL,
+			ExtensionToLoader: map[string][]Loader{
+				".js":  {LoaderJS},
+				".svg": {LoaderDataURL},
 			},
 		},
 		expected: map[string]string{
@@ -2833,9 +2833,9 @@ func TestLoaderFile(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:   true,
 			AbsOutputDir: "/out/",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".svg": LoaderFile,
+			ExtensionToLoader: map[string][]Loader{
+				".js":  {LoaderJS},
+				".svg": {LoaderFile},
 			},
 		},
 		expected: map[string]string{
@@ -2873,9 +2873,9 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/dist/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".txt": LoaderFile,
+			ExtensionToLoader: map[string][]Loader{
+				".js":  {LoaderJS},
+				".txt": {LoaderFile},
 			},
 		},
 		expected: map[string]string{

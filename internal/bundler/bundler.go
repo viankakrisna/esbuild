@@ -104,14 +104,6 @@ func parseFile(args parseArgs) {
 	// Get the file extension
 	extension := args.fs.Ext(args.absPath)
 
-	// Pick the loader based on the file extension
-	loader := args.bundleOptions.ExtensionToLoader[extension]
-
-	// Special-case reading from stdin
-	if stdin != nil {
-		loader = stdin.Loader
-	}
-
 	result := parseResult{
 		source: source,
 		file: file{
@@ -120,90 +112,47 @@ func parseFile(args parseArgs) {
 		ok: true,
 	}
 
-	switch loader {
-	case LoaderJS:
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
-
-	case LoaderJSX:
-		args.parseOptions.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
-
-	case LoaderTS:
-		args.parseOptions.TS.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
-
-	case LoaderTSX:
-		args.parseOptions.TS.Parse = true
-		args.parseOptions.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
-
-	case LoaderJSON:
-		var expr ast.Expr
-		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
-		result.file.ignoreIfUnused = true
-
-	case LoaderText:
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
-		result.file.ignoreIfUnused = true
-
-	case LoaderBase64:
-		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
-		result.file.ignoreIfUnused = true
-
-	case LoaderDataURL:
-		mimeType := mime.TypeByExtension(extension)
-		if mimeType == "" {
-			mimeType = http.DetectContentType([]byte(source.Contents))
-		}
-		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := "data:" + mimeType + ";base64," + encoded
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(url)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
-		result.file.ignoreIfUnused = true
-
-	case LoaderFile:
-		// Add a hash to the file name to prevent multiple files with the same base
-		// name from colliding. Avoid using the absolute path to prevent build
-		// output from being different on different machines.
-		baseName := baseNameForAvoidingCollisions(args.fs, args.absPath)
-
-		// Determine the destination folder
-		targetFolder := args.bundleOptions.AbsOutputDir
-		if targetFolder == "" {
-			targetFolder = args.fs.Dir(args.bundleOptions.AbsOutputFile)
-		}
-
-		// Export the resulting relative path as a string
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
-		result.file.ignoreIfUnused = true
-
-		// Optionally add metadata about the file
-		var jsonMetadataChunk []byte
-		if args.bundleOptions.AbsMetadataFile != "" {
-			jsonMetadataChunk = []byte(fmt.Sprintf(
-				"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(source.Contents)))
-		}
-
-		// Copy the file using an additional file payload to make sure we only copy
-		// the file if the module isn't removed due to tree shaking.
-		result.file.additionalFile = &OutputFile{
-			AbsPath:           args.fs.Join(targetFolder, baseName),
-			Contents:          []byte(source.Contents),
-			jsonMetadataChunk: jsonMetadataChunk,
-		}
-
-	default:
-		result.ok = false
-		args.log.AddRangeError(args.importSource, args.pathRange,
-			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
+	// Pick the loader based on the file extension
+	loaders := args.bundleOptions.ExtensionToLoader[extension]
+	// Special-case reading from stdin
+	if stdin != nil {
+		loaders = []Loader{stdin.Loader}
 	}
 
+	runLoader(loaders, source, &result, args)
 	args.results <- result
+}
+
+func runLoader(loaders []Loader, source logging.Source, result *parseResult, args parseArgs) {
+	if len(loaders) < 1 {
+		defaultLoader(source, result, args)
+		return
+	}
+
+	for _, loader := range loaders {
+		switch loader {
+		case LoaderJS:
+			jsLoader(source, result, args)
+		case LoaderJSX:
+			jsxLoader(source, result, args)
+		case LoaderTS:
+			tsLoader(source, result, args)
+		case LoaderTSX:
+			tsxLoader(source, result, args)
+		case LoaderJSON:
+			jsonLoader(source, result, args)
+		case LoaderText:
+			textLoader(source, result, args)
+		case LoaderBase64:
+			base64Loader(source, result, args)
+		case LoaderDataURL:
+			dataURLLoader(source, result, args)
+		case LoaderFile:
+			fileLoader(source, result, args)
+		default:
+			defaultLoader(source, result, args)
+		}
+	}
 }
 
 // Identify the path by its lowercase absolute path name. This should
@@ -402,31 +351,31 @@ func ScanBundle(
 	return Bundle{fs, res, sources, files, entryPoints}
 }
 
-type Loader int
+type Loader string
 
 const (
-	LoaderNone Loader = iota
-	LoaderJS
-	LoaderJSX
-	LoaderTS
-	LoaderTSX
-	LoaderJSON
-	LoaderText
-	LoaderBase64
-	LoaderDataURL
-	LoaderFile
+	LoaderNone    Loader = "LoaderNone"
+	LoaderJS             = "LoaderJS"
+	LoaderJSX            = "LoaderJSX"
+	LoaderTS             = "LoaderTS"
+	LoaderTSX            = "LoaderTSX"
+	LoaderJSON           = "LoaderJSON"
+	LoaderText           = "LoaderText"
+	LoaderBase64         = "LoaderBase64"
+	LoaderDataURL        = "LoaderDataURL"
+	LoaderFile           = "LoaderFile"
 )
 
-func DefaultExtensionToLoaderMap() map[string]Loader {
-	return map[string]Loader{
-		".js":   LoaderJS,
-		".mjs":  LoaderJS,
-		".cjs":  LoaderJS,
-		".jsx":  LoaderJSX,
-		".ts":   LoaderTS,
-		".tsx":  LoaderTSX,
-		".json": LoaderJSON,
-		".txt":  LoaderText,
+func DefaultExtensionToLoaderMap() map[string][]Loader {
+	return map[string][]Loader{
+		".js":   {LoaderJS},
+		".mjs":  {LoaderJS},
+		".cjs":  {LoaderJS},
+		".jsx":  {LoaderJSX},
+		".ts":   {LoaderTS},
+		".tsx":  {LoaderTSX},
+		".json": {LoaderJSON},
+		".txt":  {LoaderText},
 	}
 }
 
@@ -456,7 +405,7 @@ type BundleOptions struct {
 	MinifyIdentifiers bool
 	MangleSyntax      bool
 	ModuleName        string
-	ExtensionToLoader map[string]Loader
+	ExtensionToLoader map[string][]Loader
 	OutputFormat      printer.Format
 
 	// If present, metadata about the bundle is written as JSON here
@@ -627,4 +576,105 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 
 	j.AddString("\n  }\n}\n")
 	return j.Done()
+}
+
+func jsLoader(source logging.Source, result *parseResult, args parseArgs) {
+	result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+
+}
+
+func jsxLoader(source logging.Source, result *parseResult, args parseArgs) {
+	args.parseOptions.JSX.Parse = true
+	result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+
+}
+
+func tsLoader(source logging.Source, result *parseResult, args parseArgs) {
+	args.parseOptions.TS.Parse = true
+	result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+
+}
+
+func tsxLoader(source logging.Source, result *parseResult, args parseArgs) {
+	args.parseOptions.TS.Parse = true
+	args.parseOptions.JSX.Parse = true
+	result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+
+}
+
+func jsonLoader(source logging.Source, result *parseResult, args parseArgs) {
+	var expr ast.Expr
+	expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
+	result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+	result.file.ignoreIfUnused = true
+
+}
+
+func textLoader(source logging.Source, result *parseResult, args parseArgs) {
+	expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(source.Contents)}}
+	result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+	result.file.ignoreIfUnused = true
+
+}
+
+func base64Loader(source logging.Source, result *parseResult, args parseArgs) {
+	encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+	expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(encoded)}}
+	result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+	result.file.ignoreIfUnused = true
+
+}
+
+func dataURLLoader(source logging.Source, result *parseResult, args parseArgs) {
+	extension := args.fs.Ext(args.absPath)
+	mimeType := mime.TypeByExtension(extension)
+	if mimeType == "" {
+		mimeType = http.DetectContentType([]byte(source.Contents))
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+	url := "data:" + mimeType + ";base64," + encoded
+	expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(url)}}
+	result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+	result.file.ignoreIfUnused = true
+
+}
+
+func fileLoader(source logging.Source, result *parseResult, args parseArgs) {
+	// Add a hash to the file name to prevent multiple files with the same base
+	// name from colliding. Avoid using the absolute path to prevent build
+	// output from being different on different machines.
+	baseName := baseNameForAvoidingCollisions(args.fs, args.absPath)
+
+	// Determine the destination folder
+	targetFolder := args.bundleOptions.AbsOutputDir
+	if targetFolder == "" {
+		targetFolder = args.fs.Dir(args.bundleOptions.AbsOutputFile)
+	}
+
+	// Export the resulting relative path as a string
+	expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
+	result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+	result.file.ignoreIfUnused = true
+
+	// Optionally add metadata about the file
+	var jsonMetadataChunk []byte
+	if args.bundleOptions.AbsMetadataFile != "" {
+		jsonMetadataChunk = []byte(fmt.Sprintf(
+			"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(source.Contents)))
+	}
+
+	// Copy the file using an additional file payload to make sure we only copy
+	// the file if the module isn't removed due to tree shaking.
+	result.file.additionalFile = &OutputFile{
+		AbsPath:           args.fs.Join(targetFolder, baseName),
+		Contents:          []byte(source.Contents),
+		jsonMetadataChunk: jsonMetadataChunk,
+	}
+
+}
+
+func defaultLoader(source logging.Source, result *parseResult, args parseArgs) {
+	result.ok = false
+	args.log.AddRangeError(args.importSource, args.pathRange,
+		fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 }

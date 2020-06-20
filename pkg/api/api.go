@@ -187,7 +187,7 @@ type BuildOptions struct {
 	Platform          Platform
 	Format            Format
 	Externals         []string
-	Loaders           map[string]Loader
+	Loaders           map[string][]Loader
 	ResolveExtensions []string
 
 	EntryPoints []string
